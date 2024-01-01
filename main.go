@@ -4,6 +4,7 @@ import (
     "database/sql"
     "log"
     "net/http"
+    "strconv"
 
     "github.com/labstack/echo/v4"
     "github.com/labstack/echo/v4/middleware"
@@ -37,11 +38,46 @@ func initDB(filepath string) *sql.DB {
     return db
 }
 
+func validateUser(name string, age int) error {
+    if name == "" {
+        return echo.NewHTTPError(http.StatusBadRequest, "name is empty")
+    }
+
+    if len(name) > 100 { // let(name) を len(name) に修正
+        return echo.NewHTTPError(http.StatusBadRequest, "name is too long")
+    }
+
+    if age < 0 || age >= 200 {
+        return echo.NewHTTPError(http.StatusBadRequest, "age must be between 0 and 200")
+    }
+    return nil
+}
+
 func main()  {
     db := initDB("./example.db")
     e :=  echo.New()
     e.Use(middleware.Logger())
 
+    // データの削除
+    e.DELETE("/users/:id", func(c echo.Context) error {
+        id, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+            return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+        }
+
+        result, err := db.Exec("DELETE FROM users WHERE id = ?", id)
+        if err != nil {
+            return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+        }
+
+        rowsAffected, err := result.RowsAffected()
+        if rowsAffected == 0 {
+            return echo.NewHTTPError(http.StatusNotFound, "not Found")
+        }
+
+        return c.NoContent(http.StatusNoContent)
+    })
+    // データを追加
     e.POST("/users", func(c echo.Context) error {
 			u := new(User)
 			if err := c.Bind(u); err != nil {
@@ -60,6 +96,35 @@ func main()  {
 			return c.JSON(http.StatusOK, &User{ID: int(id), Name: u.Name, Age: u.Age})
 	})
 
+    e.PUT("/users/:id", func(c echo.Context) error {
+        id, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+            return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+        }
+
+        u := new(User)
+        if err := c.Bind(u); err != nil {
+            return err
+        }
+
+        if err := validateUser(u.Name, u.Age); err != nil { // name, age を u.Name, u.Age に修正
+            return err
+        }
+
+        result, err := db.Exec("UPDATE users SET name = ?, age = ? WHERE id = ?", u.Name, u.Age, id) // name, age を u.Name, u.Age に修正
+        if err != nil {
+            return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+        }
+
+        rows, err := result.RowsAffected()
+        if rows == 0 {
+            return echo.NewHTTPError(http.StatusNotFound, "not Found")
+        }
+
+        return c.JSON(http.StatusOK, u)
+    })
+
+    // データを取得
     e.GET("/users", func(c echo.Context) error {
         rows, err := db.Query("SELECT * FROM users")
         if err != nil {
@@ -77,6 +142,24 @@ func main()  {
         }
 
         return c.JSON(http.StatusOK, users)
+    })
+
+    // 特定のユーザーのデータを取得
+    e.GET("/users/:id", func(c echo.Context) error {
+        id, err := strconv.Atoi(c.Param("id"))
+        if err != nil {
+            return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+        }
+        // SQL文で特定のユーザーのデータを取得
+        row := db.QueryRow("SELECT id, name, age FROM users WHERE id = ?", id)
+        // rowでScanをUser構造体に対して実行して、データを取得
+        var user User
+        if err := row.Scan(&user.ID, &user.Name, &user.Age); err != nil {
+            return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+        }
+
+        return c.JSON(http.StatusOK, user)
+
     })
 
     e.Start(":8080")
