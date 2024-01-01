@@ -1,22 +1,23 @@
 package main
 
 import (
-	"fmt"
-	"net/http"// 公式が提供するパッケージ
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
-
-type myHandler struct{}
-
-// myHandlerに対して、HTTPハンドラーを提供する
-func (h *myHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello World")
-}
 
 
 func main()  {
-	fmt.Println("Hello World")
+	e := echo.New()
 
-	handler := &myHandler{}
-	http.Handle("/", handler)
-	http.ListenAndServe(":8080", nil)
+	e.GET("/", func(c echo.Context) error {
+		return c.String(200, "Hello, World!")
+	})
+
+	e.GET("/users/", func(c echo.Context) error {
+		return c.String(200, "Hello, Users!")
+	})
+	
+	e.Use(middleware.Logger())
+
+	e.Start(":8080")
 }
