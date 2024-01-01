@@ -1,3 +1,51 @@
+# SQLiteを導入する
+
+## 1. SQLiteをインストールする
+```bash
+go get -u github.com/mattn/go-sqlite3
+```
+
+## 2. データベースを作成する
+`go run main.go`を実行した後に、`example.db`が作成されるが、時間がかかる。
+
+```go
+package main
+
+import (
+	"database/sql"
+	"log"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+func main()  {
+	// SQLiteに接続
+	db, err := sql.Open("sqlite3", "./example.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()// deferは、関数が終了する際に実行される処理を指定するためのものです。
+  // usersテーブルを作成
+	createTableSQL := `CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		age INTEGER NOT NULL
+	);
+  `
+
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Table Created")
+}
+```
+
+## 3. データの追加とfetch
+`main.go`を以下のように変更する。
+
+```go
 package main
 
 import (
@@ -81,3 +129,20 @@ func main()  {
 
     e.Start(":8080")
 }
+```
+
+POSTのテストをする
+```bash
+curl -XPOST localhost:8080/users
+```
+
+## 3. データを挿入する
+nameとageを挿入する
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"name":"test", "age": 20}' http://localhost:8080/users
+```
+
+データを取得する
+```bash
+curl -XGET http://localhost:8080/users
+```
